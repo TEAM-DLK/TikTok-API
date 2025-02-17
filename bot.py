@@ -1,6 +1,5 @@
 import os
 import requests
-import logging
 from datetime import datetime
 from io import BytesIO
 from telegram import Bot
@@ -9,9 +8,6 @@ from flask import Flask
 
 # Your bot token
 TOKEN = '8000339832:AAHCEe0fGhEK162ehtfUkryGHW-jNvkvHC8'
-
-# Set up logging to capture more details
-logging.basicConfig(level=logging.DEBUG)
 
 # Set up the Updater and Bot
 updater = Updater(token=TOKEN, use_context=True)
@@ -30,20 +26,19 @@ def tiktok_download(update, context):
         url = command_parts[1]
         api_url = f"https://api.sumiproject.net/tiktok?video={url}"
 
-        logging.info(f"Requesting TikTok API with URL: {url}")
-        
+        # Adding a User-Agent header to the request to avoid 403 errors
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+
         # Send a request to the TikTok API
-        response = requests.get(api_url)
+        response = requests.get(api_url, headers=headers)
 
-        # Log the response status and content
-        logging.debug(f"API Response Status: {response.status_code}")
-        logging.debug(f"API Response Body: {response.text}")
-
-        # Check if the response status is 200 (successful)
+        # Check if the API request was successful
         if response.status_code != 200:
             update.message.reply_text(f"❌ Lỗi kết nối API TikTok. Mã lỗi: {response.status_code}. Vui lòng thử lại sau.")
             return
-        
+
         # Check if the response contains data
         if not response.text:
             update.message.reply_text("Không nhận được dữ liệu từ TikTok API.")
@@ -78,7 +73,6 @@ def tiktok_download(update, context):
                 f"</blockquote>"
                 f"🎵 <a href='{music_url}'>Nhạc By Video</a>"
             )
-            # Send the video and music
             bot.send_video(chat_id=update.message.chat.id, video=play_url, caption=haha, parse_mode='HTML')
             music_response = requests.get(music_url)
             audio_data = BytesIO(music_response.content)
@@ -86,11 +80,7 @@ def tiktok_download(update, context):
             bot.send_audio(update.message.chat.id, audio_data, title="Nhạc nền từ video", performer=nickname)
         else:
             update.message.reply_text("❌ Không thể lấy thông tin video từ TikTok.")
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Request error: {str(e)}")
-        update.message.reply_text(f"❌ Lỗi kết nối mạng: {str(e)}. Vui lòng thử lại sau.")
     except Exception as e:
-        logging.error(f"Error occurred: {str(e)}")
         update.message.reply_text(f"Đã có lỗi xảy ra: {str(e)}")
     finally:
         try:
