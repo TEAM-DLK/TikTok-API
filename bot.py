@@ -4,9 +4,10 @@ from datetime import datetime
 from io import BytesIO
 from telegram import Bot
 from telegram.ext import CommandHandler, Updater
+from flask import Flask
 
 # Your bot token
-TOKEN = '8000339832:AAHCEe0fGhEK162ehtfUkryGHW-jNvkvHC8'
+TOKEN = 'YOUR_BOT_TOKEN'
 
 # Set up the Updater and Bot
 updater = Updater(token=TOKEN, use_context=True)
@@ -72,5 +73,17 @@ def tiktok_download(update, context):
 tiktok_handler = CommandHandler('downtt', tiktok_download)
 dispatcher.add_handler(tiktok_handler)
 
-# Start the bot
-updater.start_polling()
+# Create a simple Flask app to keep the bot alive
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    return "Bot is running!"
+
+# Start the Flask web server
+if __name__ == "__main__":
+    # Start polling in a separate thread
+    updater.start_polling()
+
+    # Start the Flask app to keep the dyno alive
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
