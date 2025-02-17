@@ -38,11 +38,13 @@ def tiktok_download(update, context):
         # Log the response status and content
         logging.debug(f"API Response Status: {response.status_code}")
         logging.debug(f"API Response Body: {response.text}")
-        
+
+        # Check if the response status is 200 (successful)
         if response.status_code != 200:
-            update.message.reply_text("❌ Không thể kết nối với TikTok API. Vui lòng thử lại sau.")
+            update.message.reply_text(f"❌ Lỗi kết nối API TikTok. Mã lỗi: {response.status_code}. Vui lòng thử lại sau.")
             return
         
+        # Check if the response contains data
         if not response.text:
             update.message.reply_text("Không nhận được dữ liệu từ TikTok API.")
             return
@@ -83,7 +85,7 @@ def tiktok_download(update, context):
             audio_data.seek(0)
             bot.send_audio(update.message.chat.id, audio_data, title="Nhạc nền từ video", performer=nickname)
         else:
-            bot.send_message(update.message.chat.id, "Không thể lấy thông tin video từ TikTok.")
+            update.message.reply_text("❌ Không thể lấy thông tin video từ TikTok.")
     except requests.exceptions.RequestException as e:
         logging.error(f"Request error: {str(e)}")
         update.message.reply_text(f"❌ Lỗi kết nối mạng: {str(e)}. Vui lòng thử lại sau.")
