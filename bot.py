@@ -26,7 +26,16 @@ def tiktok_download(update, context):
         url = command_parts[1]
         api_url = f"https://api.sumiproject.net/tiktok?video={url}"
         response = requests.get(api_url)
-        data = response.json() 
+        
+        # Debugging the response
+        print(f"API Response: {response.text}")  # Add this line to check the raw response
+        
+        # Check if response is empty
+        if not response.text:
+            update.message.reply_text("Không nhận được dữ liệu từ TikTok API.")
+            return
+
+        data = response.json()
 
         if data['code'] == 0:
             video_data = data['data']
@@ -62,7 +71,7 @@ def tiktok_download(update, context):
         else:
             bot.send_message(update.message.chat.id, "Không thể lấy thông tin video từ TikTok.")
     except Exception as e:
-        bot.send_message(update.message.chat.id, f"Đã có lỗi xảy ra: {str(e)}")
+        update.message.reply_text(f"Đã có lỗi xảy ra: {str(e)}")
     finally:
         try:
             bot.delete_message(update.message.chat.id, waiting_message.message_id)
