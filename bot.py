@@ -1,108 +1,75 @@
 import os
+import telebot
 import requests
-from datetime import datetime
-from io import BytesIO
 from flask import Flask, request
-from telebot import TeleBot, types
 
-# Get environment variables
-TOKEN = os.getenv("BOT_TOKEN")
-APP_URL = os.getenv("APP_URL")  # Your Heroku app URL
-bot = TeleBot(TOKEN)
+# Load environment variables from Heroku
+TOKEN = os.getenv("BOT_TOKEN")  # Telegram Bot Token
+APP_URL = os.getenv("APP_URL")  # Heroku App URL (e.g., https://your-app.herokuapp.com)
 
-# Flask server
+# Initialize Bot & Flask Server
+bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
 
-@bot.message_handler(commands=['downtt'])
-def tiktok_download(message: types.Message):
+# Webhook Route (Telegram will send updates here)
+@server.route(f"/{TOKEN}", methods=["POST"])
+def receive_update():
+    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    return "OK", 200
+
+# Root Route (For testing if the bot is alive)
+@server.route("/")
+def home():
+    return "Bot is running!", 200
+
+# Bot Command: /start
+@bot.message_handler(commands=["start"])
+def send_welcome(message):
+    bot.send_message(message.chat.id, "Hello! I am your Telegram bot running on Heroku!")
+
+# Bot Command: /downtt (TikTok Video Downloader)
+@bot.message_handler(commands=["downtt"])
+def tiktok_download(message):
     try:
-        command_parts = message.text.split(maxsplit=1)
+        # Parse the command
+        command_parts = message.text.split(" ")
         if len(command_parts) == 1:
-            bot.reply_to(
-                message, 
-                "❗ Please enter the TikTok video URL.\n\nUsage: `/downtt <url>`",
-                parse_mode='Markdown'
-            )
+            bot.reply_to(message, "❗ Please provide a TikTok video URL.\n\nUsage: `/downtt <url>`", parse_mode="Markdown")
             return
 
-        url = command_parts[1]
         waiting_message = bot.reply_to(message, "⌨️ Downloading video...")
 
+        # Call TikTok API
+        url = command_parts[1]
         api_url = f"https://api.sumiproject.net/tiktok?video={url}"
         response = requests.get(api_url)
-
-        if response.status_code != 200:
-            bot.send_message(message.chat.id, "❌ Unable to connect to the API.")
-            return
-
         data = response.json()
-        if data.get("code") != 0:
-            bot.send_message(message.chat.id, "❌ Failed to fetch video details from TikTok.")
-            return
 
-        video_data = data["data"]
-        author = video_data.get("author", {})
-        title = video_data.get("title", "No title available")
-        region = video_data.get("region", "Unknown region")
-        play_url = video_data.get("play")
-        music_url = video_data.get("music")
-        create_time = video_data.get("create_time", 0)
-        nickname = author.get("nickname", "Unknown author")
+        if data["code"] == 0:
+            video_data = data["data"]
+            play_url = video_data.get("play", "No video URL available")
+            music_url = video_data.get("music", "No music URL available")
+            nickname = video_data.get("author", {}).get("nickname", "Unknown")
 
-        if not play_url:
-            bot.send_message(message.chat.id, "❌ No video URL found.")
-            return
+            bot.send_video(chat_id=message.chat.id, video=play_url, caption="🎥 Here is your TikTok video!", parse_mode="HTML")
 
-        create_time_formatted = datetime.utcfromtimestamp(create_time).strftime("%H:%M:%S | %d/%m/%Y")
-        caption = (
-            f"<b>🎥 {title}</b>\n\n"
-            f"<blockquote>\n"
-            f"📅 <b>Upload Date:</b> {create_time_formatted}\n\n"
-            f"👤 <b>Author:</b> {nickname}\n"
-            f"🌍 <b>Region:</b> {region}\n"
-            f"⏱️ <b>Duration:</b> {video_data.get('duration', 'Unknown')} seconds\n\n"
-            f"👁 <b>Views:</b> {video_data.get('play_count', 0):,}\n"
-            f"❤️ <b>Likes:</b> {video_data.get('digg_count', 0):,}\n"
-            f"💬 <b>Comments:</b> {video_data.get('comment_count', 0):,}\n"
-            f"🔗 <b>Shares:</b> {video_data.get('share_count', 0):,}\n"
-            f"📥 <b>Downloads:</b> {video_data.get('download_count', 0):,}\n"
-            f"📑 <b>Saved to Collections:</b> {video_data.get('collect_count', 0):,}\n"
-            f"</blockquote>"
-        )
-
-        bot.send_video(chat_id=message.chat.id, video=play_url, caption=caption, parse_mode="HTML")
-
-        if music_url:
+            # Send Audio
             music_response = requests.get(music_url)
-            if music_response.status_code == 200:
-                audio_data = BytesIO(music_response.content)
-                audio_data.seek(0)
-                bot.send_audio(message.chat.id, audio_data, title="Background Music", performer=nickname)
+            bot.send_audio(message.chat.id, music_response.content, title="TikTok Music", performer=nickname)
 
-    except requests.exceptions.RequestException:
-        bot.send_message(message.chat.id, "❌ Network error, please try again.")
+        else:
+            bot.send_message(message.chat.id, "⚠️ Unable to fetch video from TikTok.")
+
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ An error occurred: {str(e)}")
+        bot.send_message(message.chat.id, f"❌ Error: {str(e)}")
     finally:
         try:
             bot.delete_message(message.chat.id, waiting_message.message_id)
         except:
             pass
 
-# Webhook route
-@server.route(f"/{TOKEN}", methods=["POST"])
-def receive_update():
-    bot.process_new_updates([types.Update.de_json(request.stream.read().decode("utf-8"))])
-    return "OK", 200
-
-# Start webhook
-@server.route("/")
-def webhook():
+# Set Webhook Before Starting Flask
+if __name__ == "__main__":
     bot.remove_webhook()
-    bot.set_webhook(url=f"{APP_URL}/{TOKEN}")
-    return "Webhook set!", 200
-
-# Gunicorn entry point
-if __name__ != "__main__":
-    bot.remove_webhook()
-    bot.set_webhook(url=f"{APP_URL}/{TOKEN}")
+    bot.set_webhook(url=f"{APP_URL}/{TOKEN}")  # Ensure webhook is set only once
+    server.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
