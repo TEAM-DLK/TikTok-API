@@ -2,11 +2,15 @@ import os
 import requests
 from datetime import datetime
 from io import BytesIO
-from telebot import TeleBot, types
 from flask import Flask, request
+from telebot import TeleBot, types
 
-TOKEN = os.getenv("BOT_TOKEN")  # Get the token from Heroku environment variables
+# Get environment variables
+TOKEN = os.getenv("BOT_TOKEN")
+APP_URL = os.getenv("APP_URL")  # Your Heroku app URL
 bot = TeleBot(TOKEN)
+
+# Flask server
 server = Flask(__name__)
 
 @bot.message_handler(commands=['downtt'])
@@ -95,8 +99,10 @@ def receive_update():
 @server.route("/")
 def webhook():
     bot.remove_webhook()
-    bot.set_webhook(url=f"{os.getenv('APP_URL')}/{TOKEN}")
+    bot.set_webhook(url=f"{APP_URL}/{TOKEN}")
     return "Webhook set!", 200
 
-if __name__ == "__main__":
-    server.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+# Gunicorn entry point
+if __name__ != "__main__":
+    bot.remove_webhook()
+    bot.set_webhook(url=f"{APP_URL}/{TOKEN}")
