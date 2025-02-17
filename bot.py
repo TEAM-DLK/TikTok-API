@@ -1,52 +1,30 @@
-import os
 import requests
+import telebot
 from datetime import datetime
 from io import BytesIO
-from telegram import Bot
-from telegram.ext import CommandHandler, Updater
-from flask import Flask
 
-# Your bot token
-TOKEN = '8000339832:AAHCEe0fGhEK162ehtfUkryGHW-jNvkvHC8'
 
-# Set up the Updater and Bot
-updater = Updater(token=TOKEN, use_context=True)
-dispatcher = updater.dispatcher
-bot = Bot(token=TOKEN)
 
-# Command handler for downloading TikTok video
-def tiktok_download(update, context):
+TOKEN_BOT_LQH = "8000339832:AAGmbTBiXluVTGfB54xgXgJtFzU7AR3aCKg" 
+bot = telebot.TeleBot(TOKEN_BOT_LQH)
+
+@bot.message_handler(commands=['downtt'])
+def tiktok_download(message):
     try:
-        command_parts = update.message.text.split(' ')
+        # Kiểm tra nếu không có URL trong lệnh
+        command_parts = message.text.split(' ')
         if len(command_parts) == 1:
-            update.message.reply_text("❗ Vui lòng nhập URL của video TikTok.\n\nCách sử dụng: /downtt <url>")
+            bot.reply_to(
+                message,
+                "❗ Vui lòng nhập URL của video TikTok.\n\nCách sử dụng: /downtt <url>",
+                parse_mode='Markdown'
+            )
             return
-        
-        waiting_message = update.message.reply_text('⌨️ Đang tải video...')
+        waiting_message = bot.reply_to(message, '⌨️ Đang tải video...')
         url = command_parts[1]
         api_url = f"https://api.sumiproject.net/tiktok?video={url}"
-
-        # Adding a User-Agent header to the request to avoid 403 errors
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-
-        # Send a request to the TikTok API
-        response = requests.get(api_url, headers=headers)
-
-        # Check if the API request was successful
-        if response.status_code != 200:
-            update.message.reply_text(f"❌ Lỗi kết nối API TikTok. Mã lỗi: {response.status_code}. Vui lòng thử lại sau.")
-            return
-
-        # Check if the response contains data
-        if not response.text:
-            update.message.reply_text("Không nhận được dữ liệu từ TikTok API.")
-            return
-
-        # Process the JSON response from the API
-        data = response.json()
-
+        response = requests.get(api_url)
+        data = response.json() 
         if data['code'] == 0:
             video_data = data['data']
             author = video_data.get('author', {})
@@ -73,36 +51,21 @@ def tiktok_download(update, context):
                 f"</blockquote>"
                 f"🎵 <a href='{music_url}'>Nhạc By Video</a>"
             )
-            bot.send_video(chat_id=update.message.chat.id, video=play_url, caption=haha, parse_mode='HTML')
+            bot.send_video(chat_id=message.chat.id, video=play_url, caption=haha, parse_mode='HTML')
             music_response = requests.get(music_url)
             audio_data = BytesIO(music_response.content)
             audio_data.seek(0)
-            bot.send_audio(update.message.chat.id, audio_data, title="Nhạc nền từ video", performer=nickname)
+            bot.send_audio(message.chat.id, audio_data, title="Nhạc nền từ video", performer=nickname)
         else:
-            update.message.reply_text("❌ Không thể lấy thông tin video từ TikTok.")
+            bot.send_message(message.chat.id, "Không thể lấy thông tin video từ TikTok.")
     except Exception as e:
-        update.message.reply_text(f"Đã có lỗi xảy ra: {str(e)}")
+        bot.send_message(message.chat.id, f"Đã có lỗi xảy ra: {str(e)}")
     finally:
         try:
-            bot.delete_message(update.message.chat.id, waiting_message.message_id)
+            bot.delete_message(message.chat.id, waiting_message.message_id)
         except Exception:
             pass
 
-# Add the handler to the dispatcher
-tiktok_handler = CommandHandler('downtt', tiktok_download)
-dispatcher.add_handler(tiktok_handler)
 
-# Create a simple Flask app to keep the bot alive
-app = Flask(__name__)
 
-@app.route('/')
-def hello():
-    return "Bot is running!"
-
-# Start the Flask web server
-if __name__ == "__main__":
-    # Start polling in a separate thread
-    updater.start_polling()
-
-    # Start the Flask app to keep the dyno alive
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+bot.polling(none_stop=True)
