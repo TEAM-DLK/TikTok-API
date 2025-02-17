@@ -7,7 +7,7 @@ from telegram.ext import CommandHandler, Updater
 from flask import Flask
 
 # Your bot token
-TOKEN = 'YOUR_BOT_TOKEN'
+TOKEN = '8000339832:AAHCEe0fGhEK162ehtfUkryGHW-jNvkvHC8'
 
 # Set up the Updater and Bot
 updater = Updater(token=TOKEN, use_context=True)
