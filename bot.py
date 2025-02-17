@@ -21,10 +21,20 @@ def tiktok_download(message):
             return
         
         waiting_message = bot.reply_to(message, '⌨️ Downloading video...')
-
+        
         url = command_parts[1]
+        if 'tiktok.com' not in url:
+            bot.reply_to(message, "❌ Please provide a valid TikTok URL.")
+            return
+
         api_url = f"https://api.sumiproject.net/tiktok?video={url}"
         response = requests.get(api_url)
+        
+        # Check if the response is successful
+        if response.status_code != 200:
+            bot.send_message(message.chat.id, "❌ Failed to fetch video data from the API.")
+            return
+        
         data = response.json()
 
         if data['code'] == 0:
@@ -59,9 +69,12 @@ def tiktok_download(message):
 
             # Download and send the background music
             music_response = requests.get(music_url)
-            audio_data = BytesIO(music_response.content)
-            audio_data.seek(0)
-            bot.send_audio(message.chat.id, audio_data, title="TikTok Background Music", performer=nickname)
+            if music_response.status_code == 200:
+                audio_data = BytesIO(music_response.content)
+                audio_data.seek(0)
+                bot.send_audio(message.chat.id, audio_data, title="TikTok Background Music", performer=nickname)
+            else:
+                bot.send_message(message.chat.id, "❌ Failed to download background music.")
         
         else:
             bot.send_message(message.chat.id, "❌ Unable to fetch video information from TikTok.")
@@ -75,3 +88,6 @@ def tiktok_download(message):
             bot.delete_message(message.chat.id, waiting_message.message_id)
         except Exception:
             pass
+
+# Add polling to keep the bot running
+bot.polling(non_stop=True)
