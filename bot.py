@@ -1,93 +1,76 @@
 import os
 import requests
-import telebot
-from io import BytesIO
 from datetime import datetime
+from io import BytesIO
+from telegram import Bot
+from telegram.ext import CommandHandler, Updater
 
-TOKEN = os.getenv("TOKEN")  # Load your bot token from Heroku environment variables
-bot = telebot.TeleBot(TOKEN)
+# Your bot token
+TOKEN = 'YOUR_BOT_TOKEN'
 
-@bot.message_handler(commands=['downtt'])
-def tiktok_download(message):
+# Set up the Updater and Bot
+updater = Updater(token=TOKEN, use_context=True)
+dispatcher = updater.dispatcher
+bot = Bot(token=TOKEN)
+
+# Command handler for downloading TikTok video
+def tiktok_download(update, context):
     try:
-        # Check if no URL is provided
-        command_parts = message.text.split(' ')
+        command_parts = update.message.text.split(' ')
         if len(command_parts) == 1:
-            bot.reply_to(
-                message,
-                "❗ Please enter a TikTok video URL.\n\nUsage: `/downtt <url>`",
-                parse_mode='Markdown'
-            )
+            update.message.reply_text("❗ Vui lòng nhập URL của video TikTok.\n\nCách sử dụng: /downtt <url>")
             return
         
-        waiting_message = bot.reply_to(message, '⌨️ Downloading video...')
-        
+        waiting_message = update.message.reply_text('⌨️ Đang tải video...')
         url = command_parts[1]
-        if 'tiktok.com' not in url:
-            bot.reply_to(message, "❌ Please provide a valid TikTok URL.")
-            return
-
         api_url = f"https://api.sumiproject.net/tiktok?video={url}"
         response = requests.get(api_url)
-        
-        # Check if the response is successful
-        if response.status_code != 200:
-            bot.send_message(message.chat.id, "❌ Failed to fetch video data from the API.")
-            return
-        
-        data = response.json()
+        data = response.json() 
 
         if data['code'] == 0:
             video_data = data['data']
             author = video_data.get('author', {})
-            title = video_data.get('title', 'No Title')
-            region = video_data.get('region', 'Unknown Region')
-            play_url = video_data.get('play', 'No Video URL')
-            music_url = video_data.get('music', 'No Music URL')
+            title = video_data.get('title', 'Không có tiêu đề')
+            region = video_data.get('region', 'Không rõ khu vực')
+            play_url = video_data.get('play', 'Không có URL phát video')
+            music_url = video_data.get('music', 'Không có URL nhạc')
             create_time = video_data.get('create_time', 0)
-            nickname = author.get('nickname', 'Unknown Author')
+            nickname = author.get('nickname', 'Không có tên tác giả')
             create_time_formatted = datetime.utcfromtimestamp(create_time).strftime('%H:%M:%S | %d/%m/%Y')
-
-            caption_text = (
+            haha = (
                 f"<b>🎥 {title}</b>\n\n"
                 f"<blockquote>\n"
-                f"📅 <b>Uploaded:</b> {create_time_formatted}\n"
-                f"👤 <b>Author:</b> {nickname}\n"
-                f"🌍 <b>Region:</b> {region}\n"
-                f"⏱️ <b>Duration:</b> {video_data.get('duration', 'Unknown')} seconds\n\n"
+                f"📅 Ngày Đăng: {create_time_formatted}\n\n"
+                f"👤 <b>Tác giả:</b> {nickname}\n"
+                f"🌍 <b>Khu Vực:</b> {region}\n"
+                f"⏱️ <b>Độ Dài Video:</b> {video_data.get('duration', 'Không rõ')} Giây\n\n"
                 f"👁 <b>Views:</b> {video_data.get('play_count', 0):,}\n"
                 f"❤️ <b>Likes:</b> {video_data.get('digg_count', 0):,}\n"
                 f"💬 <b>Comments:</b> {video_data.get('comment_count', 0):,}\n"
                 f"🔗 <b>Shares:</b> {video_data.get('share_count', 0):,}\n"
                 f"📥 <b>Downloads:</b> {video_data.get('download_count', 0):,}\n"
-                f"📑 <b>Saved:</b> {video_data.get('collect_count', 0):,}\n"
-                f"</blockquote>\n"
-                f"🎵 <a href='{music_url}'>Background Music</a>"
+                f"📑 <b>Lưu vào bộ sưu tập:</b> {video_data.get('collect_count', 0):,}\n"
+                f"</blockquote>"
+                f"🎵 <a href='{music_url}'>Nhạc By Video</a>"
             )
-
-            bot.send_video(chat_id=message.chat.id, video=play_url, caption=caption_text, parse_mode='HTML')
-
-            # Download and send the background music
+            bot.send_video(chat_id=update.message.chat.id, video=play_url, caption=haha, parse_mode='HTML')
             music_response = requests.get(music_url)
-            if music_response.status_code == 200:
-                audio_data = BytesIO(music_response.content)
-                audio_data.seek(0)
-                bot.send_audio(message.chat.id, audio_data, title="TikTok Background Music", performer=nickname)
-            else:
-                bot.send_message(message.chat.id, "❌ Failed to download background music.")
-        
+            audio_data = BytesIO(music_response.content)
+            audio_data.seek(0)
+            bot.send_audio(update.message.chat.id, audio_data, title="Nhạc nền từ video", performer=nickname)
         else:
-            bot.send_message(message.chat.id, "❌ Unable to fetch video information from TikTok.")
-    
+            bot.send_message(update.message.chat.id, "Không thể lấy thông tin video từ TikTok.")
     except Exception as e:
-        bot.send_message(message.chat.id, f"⚠️ An error occurred: {str(e)}")
-    
+        bot.send_message(update.message.chat.id, f"Đã có lỗi xảy ra: {str(e)}")
     finally:
-        # Delete the "Downloading video..." message
         try:
-            bot.delete_message(message.chat.id, waiting_message.message_id)
+            bot.delete_message(update.message.chat.id, waiting_message.message_id)
         except Exception:
             pass
 
-# Add polling to keep the bot running
-bot.polling(non_stop=True)
+# Add the handler to the dispatcher
+tiktok_handler = CommandHandler('downtt', tiktok_download)
+dispatcher.add_handler(tiktok_handler)
+
+# Start the bot
+updater.start_polling()
