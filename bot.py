@@ -1,17 +1,19 @@
 import requests
-import telebot
 from datetime import datetime
 from io import BytesIO
+import telebot
+from telebot.types import Message
 
+# Replace with your bot token
+TOKEN = "8000339832:AAGmbTBiXluVTGfB54xgXgJtFzU7AR3aCKg"
 
-
-TOKEN_BOT_LQH = "8000339832:AAGmbTBiXluVTGfB54xgXgJtFzU7AR3aCKg" 
-bot = telebot.TeleBot(TOKEN_BOT_LQH)
+bot = telebot.TeleBot(TOKEN)
 
 @bot.message_handler(commands=['downtt'])
-def tiktok_download(message):
+def tiktok_download(message: Message):
+    waiting_message = None
     try:
-        # Kiểm tra nếu không có URL trong lệnh
+        # Check if URL is provided
         command_parts = message.text.split(' ')
         if len(command_parts) == 1:
             bot.reply_to(
@@ -20,22 +22,38 @@ def tiktok_download(message):
                 parse_mode='Markdown'
             )
             return
+
         waiting_message = bot.reply_to(message, '⌨️ Đang tải video...')
-        url = command_parts[1]
+        url = ' '.join(command_parts[1:])
         api_url = f"https://api.sumiproject.net/tiktok?video={url}"
+        
         response = requests.get(api_url)
-        data = response.json() 
+        try:
+            data = response.json()
+        except ValueError:
+            bot.send_message(message.chat.id, "Không thể phân tích dữ liệu từ API.")
+            return
+
         if data['code'] == 0:
             video_data = data['data']
             author = video_data.get('author', {})
             title = video_data.get('title', 'Không có tiêu đề')
             region = video_data.get('region', 'Không rõ khu vực')
-            play_url = video_data.get('play', 'Không có URL phát video')
-            music_url = video_data.get('music', 'Không có URL nhạc')
+            play_url = video_data.get('play', '')
+            music_url = video_data.get('music', '')
             create_time = video_data.get('create_time', 0)
             nickname = author.get('nickname', 'Không có tên tác giả')
             create_time_formatted = datetime.utcfromtimestamp(create_time).strftime('%H:%M:%S | %d/%m/%Y')
-            haha = (
+
+            # Validate URLs
+            if not play_url.startswith("http"):
+                bot.send_message(message.chat.id, "Video không khả dụng.")
+                return
+            if not music_url.startswith("http"):
+                bot.send_message(message.chat.id, "Nhạc không khả dụng.")
+                return
+
+            caption = (
                 f"<b>🎥 {title}</b>\n\n"
                 f"<blockquote>\n"
                 f"📅 Ngày Đăng: {create_time_formatted}\n\n"
@@ -48,10 +66,13 @@ def tiktok_download(message):
                 f"🔗 <b>Shares:</b> {video_data.get('share_count', 0):,}\n"
                 f"📥 <b>Downloads:</b> {video_data.get('download_count', 0):,}\n"
                 f"📑 <b>Lưu vào bộ sưu tập:</b> {video_data.get('collect_count', 0):,}\n"
-                f"</blockquote>"
+                f"</blockquote>\n"
                 f"🎵 <a href='{music_url}'>Nhạc By Video</a>"
             )
-            bot.send_video(chat_id=message.chat.id, video=play_url, caption=haha, parse_mode='HTML')
+
+            bot.send_video(chat_id=message.chat.id, video=play_url, caption=caption, parse_mode='HTML')
+
+            # Download and send audio
             music_response = requests.get(music_url)
             audio_data = BytesIO(music_response.content)
             audio_data.seek(0)
@@ -61,11 +82,12 @@ def tiktok_download(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"Đã có lỗi xảy ra: {str(e)}")
     finally:
-        try:
-            bot.delete_message(message.chat.id, waiting_message.message_id)
-        except Exception:
-            pass
+        if waiting_message:
+            try:
+                bot.delete_message(message.chat.id, waiting_message.message_id)
+            except Exception:
+                pass
 
-
-
-bot.polling(none_stop=True)
+if __name__ == "__main__":
+    print("Bot is running...")
+    bot.polling(none_stop=True)
