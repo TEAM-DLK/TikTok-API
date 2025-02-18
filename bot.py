@@ -40,7 +40,9 @@ def tiktok_download(message):
         # Call API
         api_url = f"https://api.sumiproject.net/tiktok?video={url}"
         response = requests.get(api_url)
-print("API Response:", response.text)  # This will help debug the issue
+        
+        # Print API response for debugging
+        print("API Response:", response.text)  # This will help debug the issue
 
         # Check if API responded correctly
         if response.status_code != 200:
