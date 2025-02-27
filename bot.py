@@ -6,7 +6,7 @@ import telebot
 from telebot.types import Message
 
 # Replace with your bot token
-TOKEN = "8000339832:AAGmbTBiXluVTGfB54xgXgJtFzU7AR3aCKg"
+TOKEN = "XXXXXX:AAGmbTBiXluVTGfB54xgXgJtFzU7AR3aCKg"
 
 bot = telebot.TeleBot(TOKEN)
 
